@@ -38,6 +38,7 @@
         <tr>
           <th v-for="column in columns" :key="column">{{ column }}</th>
           <th>当前状态</th>
+          <th>排污待办</th>
           <th>可执行动作</th>
         </tr>
       </thead>
@@ -45,6 +46,7 @@
         <tr v-for="row in rows" :key="String(row.id)">
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
           <td>{{ row.status }}</td>
+          <td>{{ lavatoryTodoOf(row) }}</td>
           <td class="row-actions">
             <button
               v-for="action in actions"
@@ -58,7 +60,7 @@
           </td>
         </tr>
         <tr v-if="!rows.length">
-          <td :colspan="columns.length + 2" class="empty-state">暂无航班保障数据，可先登记航班保障</td>
+          <td :colspan="columns.length + 3" class="empty-state">暂无航班保障数据，可先登记航班保障</td>
         </tr>
       </tbody>
     </table>
@@ -75,6 +77,7 @@ import { computed, onMounted, ref } from 'vue'
 
 import {
   downloadEntries,
+  lavatoryTodosByFlight,
   listEntries,
   moduleMeta,
   runAction as applyAction,
@@ -92,6 +95,13 @@ const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+// 排污服务待办按航班同步：与排污服务列表读同一份数据，状态口径一致。
+const lavatoryTodos = ref<Map<string, string[]>>(new Map())
+
+function lavatoryTodoOf(row: EntryRow): string {
+  const todos = lavatoryTodos.value.get(String(row['航班号'] ?? ''))
+  return todos && todos.length > 0 ? todos.join('、') : '无'
+}
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -128,6 +138,7 @@ function reload() {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    lavatoryTodos.value = lavatoryTodosByFlight()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '航班保障列表读取失败'
   }

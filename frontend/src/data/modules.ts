@@ -100,6 +100,8 @@ export const MODULES: ModuleMeta[] = [
     actions: ["开始服务", "确认完成", "报修设备"],
     actionTargets: {"开始服务": "服务中", "确认完成": "已完成", "报修设备": "设备异常"},
     metrics: ["待服务航班", "服务中航班", "设备异常数"],
+    doneStatus: "已完成",
+    abnormalStatus: "设备异常",
   },
   {
     key: "deicing",

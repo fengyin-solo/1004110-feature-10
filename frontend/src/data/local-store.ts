@@ -1,8 +1,10 @@
 import { SEED_ROWS } from './seed'
-import type { EntryRow } from './types'
+import type { EntryRow, OpLogEntry } from './types'
 
 // 本地持久化：数据放在 localStorage 里，刷新、关掉再打开都还在。
 const STORAGE_KEY = 'airport-ground-handling:entries'
+// 操作历史单独存：只追加不改写，历史操作人仍归原班组。
+const OPLOG_KEY = 'airport-ground-handling:oplogs'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -56,4 +58,44 @@ export function resetRows(key: string): EntryRow[] {
 
 export function storageKey(): string {
   return STORAGE_KEY
+}
+
+type OpLogBook = Record<string, Record<string, OpLogEntry[]>>
+
+let opLogCache: OpLogBook | null = null
+
+function readOpLogs(): OpLogBook {
+  if (opLogCache !== null) {
+    return opLogCache
+  }
+  let book: OpLogBook = {}
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const raw = window.localStorage.getItem(OPLOG_KEY)
+    if (raw) {
+      try {
+        book = JSON.parse(raw) as OpLogBook
+      } catch {
+        book = {}
+      }
+    }
+  }
+  opLogCache = book
+  return book
+}
+
+export function listOpLogs(key: string, id: number): OpLogEntry[] {
+  const book = readOpLogs()
+  return clone(book[key]?.[String(id)] ?? [])
+}
+
+// 只追加：同一条历史一旦写入就不再改动，班组归属以写入时为准。
+export function appendOpLog(key: string, id: number, entry: OpLogEntry): void {
+  const book = readOpLogs()
+  const moduleLogs = { ...(book[key] ?? {}) }
+  moduleLogs[String(id)] = [...(moduleLogs[String(id)] ?? []), entry]
+  const next = { ...book, [key]: moduleLogs }
+  opLogCache = next
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem(OPLOG_KEY, JSON.stringify(next))
+  }
 }
