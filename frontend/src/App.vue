@@ -11,7 +11,17 @@
     <main class="app-main">
       <header class="app-head">
         <span class="head-desc">面向航班机位分配、廊桥调度、行李转运、货物装卸、航空加油、航食配餐与客舱清洁全流程的机场地面保障调度管理平台。</span>
-        <span class="head-user">当前值班：{{ store.operator }} · {{ store.shiftLabel }}</span>
+        <span class="head-user">
+          当前值班：{{ store.operator }} · {{ store.shiftLabel }}
+          <select
+            class="role-switch"
+            :value="store.role"
+            @change="store.setRole(($event.target as HTMLSelectElement).value as 'admin' | 'staff')"
+          >
+            <option value="admin">值班管理员</option>
+            <option value="staff">班组操作员（{{ store.team }}）</option>
+          </select>
+        </span>
       </header>
       <RouterView />
     </main>

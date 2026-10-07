@@ -32,6 +32,19 @@ export type ActionResult = {
   message: string
 }
 
+/** 查看详情时传入的当前值班身份：role 为 admin 可看全部，staff 只能看本班组。 */
+export type Viewer = {
+  operator: string
+  role: 'admin' | 'staff'
+  team: string
+}
+
+export type EntryResult = {
+  ok: boolean
+  message: string
+  row: EntryRow | null
+}
+
 export type OverviewResult = {
   cards: { label: string; value: number }[]
   modules: { name: string; created: number; pending: number; abnormal: number }[]

@@ -24,7 +24,7 @@
       </span>
     </p>
 
-    <form class="filter-bar" @submit.prevent="reload">
+    <form class="filter-bar" @submit.prevent="reload()">
       <label v-for="field in filterFields" :key="field" class="filter-item">
         <span>{{ field }}</span>
         <input v-model="filters[field]" :placeholder="`按${field}检索`" />
@@ -42,7 +42,12 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="row in rows" :key="String(row.id)">
+        <tr
+          v-for="row in rows"
+          :id="`row-${row.id}`"
+          :key="String(row.id)"
+          :class="{ 'row-focus': String(row.id) === focusId }"
+        >
           <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
@@ -55,6 +60,7 @@
             >
               {{ action }}
             </button>
+            <RouterLink class="link" :to="detailTarget(row)">详情</RouterLink>
           </td>
         </tr>
         <tr v-if="!rows.length">
@@ -71,7 +77,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import {
   downloadEntries,
@@ -82,26 +89,74 @@ import {
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('lavatory')
-const columns = ["排污编号", "关联航班", "服务车型", "操作人员", "开始时间", "结束时间", "排污量", "服务状态"]
+const columns = ["排污编号", "关联航班", "服务车型", "操作人员", "所属班组", "开始时间", "结束时间", "排污量", "服务状态"]
 const actions = ["开始服务", "确认完成", "报修设备"]
 const statuses = ["待服务", "服务中", "已完成", "设备异常"]
-const stats = [{"label": "待服务航班", "value": 0}, {"label": "服务中航班", "value": 0}, {"label": "设备异常数", "value": 0}]
+
+const route = useRoute()
+const router = useRouter()
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
-const filterFields = columns.slice(0, 3)
+const filterFields = columns.slice(0, 4)
+
+// 统计卡、状态分布与列表同源：都按当前结果集的 status 结论计数，不再各算各的。
+const stats = computed(() => [
+  { label: '待服务航班', value: countByStatus('待服务') },
+  { label: '服务中航班', value: countByStatus('服务中') },
+  { label: '设备异常数', value: countByStatus('设备异常') },
+])
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
-    count: rows.value.filter((row) => String(row.status) === status).length,
+    count: countByStatus(status),
   })),
 )
 
+// 定位点：详情返回时 query 里带着 focus，回来还高亮并滚动到那条记录。
+const focusId = computed(() => String(route.query.focus ?? ''))
+
+function countByStatus(status: string): number {
+  return rows.value.filter((row) => String(row.status) === status).length
+}
+
+function restoreFilters() {
+  const restored: Record<string, string> = {}
+  for (const field of filterFields) {
+    const value = route.query[field]
+    if (typeof value === 'string' && value !== '') {
+      restored[field] = value
+    }
+  }
+  filters.value = restored
+}
+
+function syncQuery(extra: Record<string, string> = {}) {
+  const query: Record<string, string> = {}
+  for (const field of filterFields) {
+    const value = (filters.value[field] ?? '').trim()
+    if (value !== '') {
+      query[field] = value
+    }
+  }
+  Object.assign(query, extra)
+  router.replace({ name: 'lavatory', query })
+}
+
+function detailTarget(row: EntryRow) {
+  // 把当前筛选条件和定位点一起带给详情，返回时原样带回，设备异常记录不会丢。
+  return {
+    name: 'lavatory-detail',
+    params: { id: Number(row.id) },
+    query: { ...route.query, focus: String(row.id) },
+  }
+}
+
 function resetFilters() {
   filters.value = {}
-  reload()
+  reload(false)
 }
 
 function exportRows() {
@@ -122,16 +177,29 @@ function runAction(action: string, row: EntryRow) {
   reload()
 }
 
-function reload() {
+function reload(keepFocus = true) {
   errorMessage.value = ''
   try {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    syncQuery(keepFocus && focusId.value ? { focus: focusId.value } : {})
+    void scrollToFocus()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '排污服务列表读取失败'
   }
 }
 
-onMounted(reload)
+async function scrollToFocus() {
+  if (!focusId.value) {
+    return
+  }
+  await nextTick()
+  document.getElementById(`row-${focusId.value}`)?.scrollIntoView({ block: 'center' })
+}
+
+onMounted(() => {
+  restoreFilters()
+  reload()
+})
 </script>

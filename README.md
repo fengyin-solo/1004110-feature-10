@@ -68,4 +68,11 @@ npm run build
 - 字段、状态、动作与流转目标集中在 `frontend/src/data/modules.ts`；示例数据在
   `frontend/src/data/seed.ts`。
 - 状态流转只允许在 `local-service.ts` 里改，页面组件不做业务判断。
+- 状态结论的唯一来源是记录的 `status`：字段里以「状态」结尾的列（如排污的「服务状态」）只是
+  展示副本，读写时由 `local-service.ts` 规范化对齐；待办（pending）与异常（abnormal）标记也从
+  `status` 推导，列表、详情、概览看到的始终是同一个结论。
+- 排污记录有详情页（`/lavatory/:id`）：列表的筛选条件与定位行写在路由 query 里，详情返回后
+  原样恢复；详情按「所属班组」做越权校验，非管理员只能看本班组记录（头部可切换值班身份验证）。
 - 想回到初始数据：清掉浏览器里 `airport-ground-handling:entries` 这一项，或调用 `resetModule(模块)`。
+- 冒烟验证：`cd frontend && node scripts/smoke.mjs`，覆盖状态同源、重复报修幂等、越权拒绝与
+  概览待办同步。
